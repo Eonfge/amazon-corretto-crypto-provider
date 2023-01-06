@@ -5,6 +5,7 @@
 #include <openssl/ec.h>
 #include <openssl/err.h>
 #include <openssl/objects.h>
+#include <vector>
 #include "generated-headers.h"
 #include "util.h"
 #include "env.h"
@@ -63,7 +64,8 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
   jbyteArray cofactorArr,
   jbyteArray gxArr,
   jbyteArray gyArr,
-  jbyteArray orderArr)
+  jbyteArray orderArr,
+  jbyteArray encoded)
 {
     try {
         raii_env env(pEnv);
@@ -155,9 +157,80 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         }
         orderBN.toJavaArray(env, orderArr);
 
+        // TODO [childw]
+        jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), /*trace*/nullptr);
+        CBB cbb;
+        CBB_init_fixed(&cbb, borrow.data(), borrow.len());
+        if (!EC_KEY_marshal_curve_name(&cbb, group)) {
+            throw_openssl("Unable to encode curve name OID");
+        }
+
         return nid;
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return 0;
     }
 }
+
+/*
+ * Class:     com_amazon_corretto_crypto_provider_EcUtils
+ * Method:    getCurveNames
+ * Signature: TODO [childw]
+ */
+JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCurveNames(
+  JNIEnv *pEnv,
+  jclass)
+{
+    try {
+        raii_env env(pEnv);
+
+        std::vector<EC_builtin_curve> curves;
+        size_t numCurves = EC_get_builtin_curves(curves.data(), 0); // get curve count
+        curves.resize(numCurves);
+        numCurves = EC_get_builtin_curves(curves.data(), curves.size());
+        if (numCurves > curves.size()) {
+            throw_openssl("Too many curves");
+        }
+
+        jobjectArray names = env->NewObjectArray(numCurves, env->FindClass("java/lang/String"), nullptr);
+        for (int i = 0; i < numCurves; i++) {
+            int nid = curves[i].nid;
+            env->SetObjectArrayElement(names, i, env->NewStringUTF(EC_curve_nid2nist(nid)));
+        }
+
+        return names;
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+        return 0;
+    }
+}
+
+/*
+
+
+
+// EC_KEY_marshal_curve_name marshals |group| as a DER-encoded OBJECT IDENTIFIER
+// and appends the result to |cbb|. It returns one on success and zero on
+// failure.
+OPENSSL_EXPORT int EC_KEY_marshal_curve_name(CBB *cbb, const EC_GROUP *group);
+
+// EC_curve_nid2nist returns the NIST name of the elliptic curve specified by
+// |nid|, or NULL if |nid| is not a NIST curve. For example, it returns "P-256"
+// for |NID_X9_62_prime256v1|.
+OPENSSL_EXPORT const char *EC_curve_nid2nist(int nid);
+
+
+// EC_builtin_curve describes a supported elliptic curve.
+typedef struct {
+  int nid;
+  const char *comment;
+} EC_builtin_curve;
+
+// EC_get_builtin_curves writes at most |max_num_curves| elements to
+// |out_curves| and returns the total number that it would have written, had
+// |max_num_curves| been large enough.
+//
+// The |EC_builtin_curve| items describe the supported elliptic curves.
+OPENSSL_EXPORT size_t EC_get_builtin_curves(EC_builtin_curve *out_curves,
+                                            size_t max_num_curves);
+*/

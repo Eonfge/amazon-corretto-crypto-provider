@@ -24,6 +24,7 @@ final class EcUtils {
     private static final BigInteger MAX_COFACTOR = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final Pattern NIST_CURVE_PATTERN = Pattern.compile("(?:NIST )?(.)-(\\d+)");
     private static final ConcurrentHashMap<String, ECInfo> EC_INFO_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<ECParameterSpec, String> EC_PARAMS_CACHE = new ConcurrentHashMap<>();
     private static final Function<String, ECInfo> EC_INFO_LOADER = new Function<String, ECInfo>() {
         @Override
         public ECInfo apply(final String curveName) {
@@ -38,9 +39,10 @@ final class EcUtils {
             final byte[] gy = new byte[128];
             final byte[] order = new byte[128];
             final BigInteger bnCofactor;
+            final byte[] encoded = new byte[128];   // just OID of named curve, not explicit params
 
             final int nid = curveNameToInfo(normalizeName(curveName), m, fieldBasis, a, b,
-                    cofactor, gx, gy, order);
+                    cofactor, gx, gy, order, encoded);
 
             final ECGenParameterSpec namedSpec = new ECGenParameterSpec(curveName);
             final ECParameterSpec explicitSpec;
@@ -85,7 +87,7 @@ final class EcUtils {
                 throw new RuntimeCryptoException(ex);
             }
 
-            return new ECInfo(curveName, spec, nid);
+            return new ECInfo(curveName, spec, nid, encoded);
         }
 
         private String normalizeName(final String name) {
@@ -127,9 +129,12 @@ final class EcUtils {
             // Generator
             byte[] gx, byte[] gy,
             // Order of the generator
-            byte[] order);
+            byte[] order,
+            // DER-encoded info: OID for named, ECParameters for explicit (cf. RFC-3279 2.3.5)
+            byte[] encoded);
     private static native long buildGroup(int nid);
     private static native void freeGroup(long ptr);
+    private static native String[] getCurveNames();
 
     private EcUtils() {
         // Prevent instantiation
@@ -137,6 +142,18 @@ final class EcUtils {
 
     static ECInfo getSpecByName(final String curveName) {
         return EC_INFO_CACHE.computeIfAbsent(curveName, EC_INFO_LOADER);
+    }
+
+    static String getNameBySpec(final ECParameterSpec spec) {
+        if (EC_PARAMS_CACHE.isEmpty()) {
+            for (String name : getCurveNames()) {
+                EC_PARAMS_CACHE.put(getSpecByName(name).spec, name);
+            }
+        }
+        if (!EC_PARAMS_CACHE.contains(spec)) {
+            // TODO [childw] throw
+        }
+        return EC_PARAMS_CACHE.get(spec);
     }
 
     static final class ECInfo {
@@ -150,15 +167,18 @@ final class EcUtils {
               }
           }
         };
+
         final String name;
         final ECParameterSpec spec;
         final int nid;
+        final byte[] encoded;
 
-        private ECInfo(final String name, final ECParameterSpec spec, final int nid) {
+        private ECInfo(final String name, final ECParameterSpec spec, final int nid, final byte[] encoded) {
             super();
             this.name = name;
             this.spec = spec;
             this.nid = nid;
+            this.encoded = encoded;
         }
 
         @Override
@@ -195,7 +215,6 @@ final class EcUtils {
         public String toString() {
             return "ECInfo [name=" + name + ", spec=" + spec + ", nid=" + nid + "]";
         }
-
     }
 
     static final class NativeGroup extends NativeResource {
