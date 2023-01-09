@@ -76,6 +76,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         jni_string jniCurve(env, curveName);
 
         int nid = OBJ_txt2nid(jniCurve.native_str);
+        //int nid = EC_curve_nist2nid(jniCurve.native_str);
         if (nid == NID_undef) {
             ERR_clear_error();
             return 0;
@@ -196,6 +197,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
         for (int i = 0; i < numCurves; i++) {
             int nid = curves[i].nid;
             env->SetObjectArrayElement(names, i, env->NewStringUTF(EC_curve_nid2nist(nid)));
+            env->SetObjectArrayElement(names, i, env->NewStringUTF(OBJ_nid2sn(nid)));
         }
 
         return names;
@@ -228,7 +230,8 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
         }
 
         int nid = EC_GROUP_get_curve_name(group);
-        return env->NewStringUTF(EC_curve_nid2nist(nid));
+        //return env->NewStringUTF(EC_curve_nid2nist(nid));
+        return env->NewStringUTF(OBJ_nid2sn(nid));
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return nullptr;

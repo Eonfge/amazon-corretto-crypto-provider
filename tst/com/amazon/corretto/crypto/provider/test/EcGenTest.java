@@ -120,7 +120,9 @@ public class EcGenTest {
     @MethodSource("knownCurveParams")
     public void knownCurves(ArgumentsAccessor arguments) throws Exception {
         for (final Object name : arguments.toArray()) {
+            System.out.println("TESTING " + name);
             testCurveByName((String) name);
+            System.out.println("TESTED.");
         }
     }
 

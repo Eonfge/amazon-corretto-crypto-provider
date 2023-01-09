@@ -26,7 +26,7 @@ public final class EcParameters extends AlgorithmParametersSpi {
         } else if (paramSpec instanceof ECGenParameterSpec) {
             name = ((ECGenParameterSpec)paramSpec).getName();
         } else {
-            throw new InvalidParameterSpecException("Only ECParameterSpec, ECGenParameterSpec, and ECKeySizeParameterSpec supported");
+            throw new InvalidParameterSpecException("Only ECParameterSpec and ECGenParameterSpec supported");
         }
 
         ecInfo = EcUtils.getSpecByName(name);

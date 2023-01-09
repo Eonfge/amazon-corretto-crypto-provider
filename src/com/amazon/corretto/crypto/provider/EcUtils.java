@@ -4,7 +4,6 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
-import java.security.AlgorithmParameters;
 import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidParameterSpecException;
 import java.security.spec.ECField;
@@ -23,15 +22,13 @@ import java.util.regex.Pattern;
 final class EcUtils {
     private static final BigInteger MAX_COFACTOR = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final Pattern NIST_CURVE_PATTERN = Pattern.compile("(?:NIST )?(.)-(\\d+)");
-    private static final ConcurrentHashMap<ECParameterSpec, String> EC_NAME_BY_PARAMS = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Integer, String> EC_NAME_BY_KEY_SIZE = new ConcurrentHashMap<>();
-
+    private static final ConcurrentHashMap<ComparableECParameterSpec, String> EC_NAME_BY_PARAMS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, ECInfo> EC_INFO_CACHE = new ConcurrentHashMap<>();
-    static {
-        for (String name : getCurveNames()) {
-            getSpecByName(name);    // populate the cache
-        }
-    }
+    //static {
+        //for (String name : getCurveNames()) {
+            //getSpecByName(name);    // populate the cache
+        //}
+    //}
     private static final Function<String, ECInfo> EC_INFO_LOADER = new Function<String, ECInfo>() {
         @Override
         public ECInfo apply(final String curveName) {
@@ -45,82 +42,33 @@ final class EcUtils {
             final byte[] gx = new byte[128];
             final byte[] gy = new byte[128];
             final byte[] order = new byte[128];
-            final BigInteger bnCofactor;
             final byte[] encoded = new byte[128];   // just OID of named curve, not explicit params
 
             final int nid = curveNameToInfo(normalizeName(curveName), m, fieldBasis, a, b,
                     cofactor, gx, gy, order, encoded);
-
-            final ECGenParameterSpec namedSpec = new ECGenParameterSpec(curveName);
-            final ECParameterSpec explicitSpec;
-            if (nid != 0) {
-                // OpenSSL knows about this curve by name
-                bnCofactor = new BigInteger(cofactor);
-                if (bnCofactor.compareTo(MAX_COFACTOR) > 0) {
-                    throw new IllegalArgumentException(
-                            "Requested curve has a cofactor which is too large. Curve: " + curveName
-                                    + " cofactor " + bnCofactor);
-                }
-                final ECField field;
-
-                if (m[0] != 0) {
-                    field = new ECFieldF2m(m[0], new BigInteger(fieldBasis));
-                } else {
-                    field = new ECFieldFp(new BigInteger(fieldBasis));
-                }
-
-                final EllipticCurve curve = new EllipticCurve(field, new BigInteger(a), new BigInteger(
-                        b));
-                final ECPoint g = new ECPoint(new BigInteger(gx), new BigInteger(gy));
-                explicitSpec = new ECParameterSpec(curve, g, new BigInteger(order), bnCofactor.intValue());
-            } else {
-                explicitSpec = null;
-            }
-
-            ECParameterSpec spec;
-            try {
-                // First try to translate this to parameters representing a named curve
-                //AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC", AmazonCorrettoCryptoProvider.INSTANCE);
-                AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC");
-                parameters.init(namedSpec);
-                spec = parameters.getParameterSpec(ECParameterSpec.class);
-            } catch (final InvalidParameterSpecException ex) {
-                if (explicitSpec != null) {
-                    spec = explicitSpec;
-                } else {
-                    // Neither Java nor OpenSSL know about this curve by name, so throw an exception
+            if (nid == 0) {
                     throw new IllegalArgumentException("Invalid curve name: " + curveName);
-                }
-            } catch (final NoSuchAlgorithmException ex) {
-                throw new RuntimeCryptoException(ex);
             }
+
+            final BigInteger bnCofactor = new BigInteger(cofactor);
+            if (bnCofactor.compareTo(MAX_COFACTOR) > 0) {
+                throw new IllegalArgumentException(
+                        "Requested curve has a cofactor which is too large. Curve: " + curveName
+                                + " cofactor " + bnCofactor);
+            }
+            final ECField field;
+            if (m[0] != 0) {
+                field = new ECFieldF2m(m[0], new BigInteger(fieldBasis));
+            } else {
+                field = new ECFieldFp(new BigInteger(fieldBasis));
+            }
+
+            final EllipticCurve curve = new EllipticCurve(field, new BigInteger(a), new BigInteger(b));
+            final ECPoint g = new ECPoint(new BigInteger(gx), new BigInteger(gy));
+
+            final ECParameterSpec spec = new ECParameterSpec(curve, g, new BigInteger(order), bnCofactor.intValue());
 
             return new ECInfo(curveName, spec, nid, encoded);
-        }
-
-        private String normalizeName(final String name) {
-            final Matcher matcher = NIST_CURVE_PATTERN.matcher(name);
-            if (matcher.matches()) {
-                switch (matcher.group(1)) {
-                    case "P":
-                        return "secp" + matcher.group(2) + "r1";
-                    case "K":
-                        return "sect" + matcher.group(2) + "k1";
-                    case "B":
-                        // 163 is special. Maybe we need a table of these?
-                        if ("163".equals(matcher.group(2))) {
-                            return "sect163r2";
-                        } else {
-                            return "sect" + matcher.group(2) + "r1";
-                        }
-                    default:
-                        return name;
-                }
-            } else if (name.startsWith("X9.62 ")) {
-                return name.substring(6);
-            } else {
-                return name;
-            }
         }
     };
 
@@ -151,26 +99,51 @@ final class EcUtils {
     }
 
     static ECInfo getSpecByName(final String curveName) {
-        return EC_INFO_CACHE.computeIfAbsent(curveName, EC_INFO_LOADER);
+        return EC_INFO_CACHE.computeIfAbsent(normalizeName(curveName), EC_INFO_LOADER);
     }
 
     static String getNameBySpec(final ECParameterSpec spec) throws InvalidParameterSpecException {
-        if (EC_NAME_BY_PARAMS.isEmpty()) {
+        //if (EC_NAME_BY_PARAMS.isEmpty()) {
             for (String name : getCurveNames()) {
-                EC_NAME_BY_PARAMS.put(getSpecByName(name).spec, name);
+                System.out.println("FOOBAR " + name + " " + normalizeName(name));
+                final String normalized = normalizeName(name);
+                final ComparableECParameterSpec comparable = new ComparableECParameterSpec(getSpecByName(normalized).spec);
+                if (comparable.equals(new ComparableECParameterSpec(spec))) {
+                    System.out.println("HIT ON " + name);
+                    return normalized;
+                }
+                EC_NAME_BY_PARAMS.put(comparable, normalized);
             }
-        }
-        return EC_NAME_BY_PARAMS.get(spec);
+            return null;
+        //}
+        //return EC_NAME_BY_PARAMS.get(new ComparableECParameterSpec(spec));
     }
 
-    static String getNameByKeySize(final int keySize) {
-        if (EC_NAME_BY_KEY_SIZE.isEmpty()) {
-            for (String name : getCurveNames()) {
-                int size = getSpecByName(name).spec.getCurve().getField().getFieldSize();
-                EC_NAME_BY_KEY_SIZE.put(size, name);
+    private static String normalizeName(final String name) {
+        final Matcher matcher = NIST_CURVE_PATTERN.matcher(name);
+        if (matcher.matches()) {
+            switch (matcher.group(1)) {
+                case "P":
+                    return "secp" + matcher.group(2) + "r1";
+                case "K":
+                    return "sect" + matcher.group(2) + "k1";
+                case "B":
+                    // 163 is special. Maybe we need a table of these?
+                    if ("163".equals(matcher.group(2))) {
+                        return "sect163r2";
+                    } else {
+                        return "sect" + matcher.group(2) + "r1";
+                    }
+                default:
+                    return name;
             }
+        } else if (name.startsWith("X9.62 ")) {
+            return name.substring(6);
+        } else if (name.equals("secp256r1")) {  // TODO [childw]
+            return "prime256v1";
+        } else {
+            return name;
         }
-        return EC_NAME_BY_KEY_SIZE.get(keySize);
     }
 
     static final class ECInfo {
@@ -231,6 +204,32 @@ final class EcUtils {
         @Override
         public String toString() {
             return "ECInfo [name=" + name + ", spec=" + spec + ", nid=" + nid + "]";
+        }
+    }
+
+    static final class ComparableECParameterSpec {
+        private ECParameterSpec spec;
+
+        ComparableECParameterSpec(ECParameterSpec spec) {
+            this.spec = spec;
+        }
+
+        public boolean equals(ComparableECParameterSpec other) {
+            if (this.spec == other.getSpec()) {
+                return true;
+            }
+
+            if (this.spec == null || other == null || other.getSpec() == null) {
+                return false;
+            }
+            return (this.spec.getCofactor() == other.getSpec().getCofactor() &&
+                    this.spec.getOrder().equals(other.getSpec().getOrder()) &&
+                    this.spec.getCurve().equals(other.getSpec().getCurve()) &&
+                    this.spec.getGenerator().equals(other.getSpec().getGenerator()));
+        }
+
+        public ECParameterSpec getSpec() {
+            return this.spec;
         }
     }
 
