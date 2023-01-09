@@ -22,13 +22,8 @@ import java.util.regex.Pattern;
 final class EcUtils {
     private static final BigInteger MAX_COFACTOR = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final Pattern NIST_CURVE_PATTERN = Pattern.compile("(?:NIST )?(.)-(\\d+)");
-    private static final ConcurrentHashMap<ComparableECParameterSpec, String> EC_NAME_BY_PARAMS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<EllipticCurve, String> EC_NAME_BY_CURVE = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, ECInfo> EC_INFO_CACHE = new ConcurrentHashMap<>();
-    //static {
-        //for (String name : getCurveNames()) {
-            //getSpecByName(name);    // populate the cache
-        //}
-    //}
     private static final Function<String, ECInfo> EC_INFO_LOADER = new Function<String, ECInfo>() {
         @Override
         public ECInfo apply(final String curveName) {
@@ -70,6 +65,38 @@ final class EcUtils {
 
             return new ECInfo(curveName, spec, nid, encoded);
         }
+
+        private String normalizeName(final String name) {
+            final Matcher matcher = NIST_CURVE_PATTERN.matcher(name);
+            if (matcher.matches()) {
+                switch (matcher.group(1)) {
+                    case "P":
+                        // TODO [childw]
+                        if ("256".equals(matcher.group(2))) {
+                            return "prime256v1";
+                        } else {
+                            return "secp" + matcher.group(2) + "r1";
+                        }
+                    case "K":
+                        return "sect" + matcher.group(2) + "k1";
+                    case "B":
+                        // 163 is special. Maybe we need a table of these?
+                        if ("163".equals(matcher.group(2))) {
+                            return "sect163r2";
+                        } else {
+                            return "sect" + matcher.group(2) + "r1";
+                        }
+                    default:
+                        return name;
+                }
+            } else if (name.startsWith("X9.62 ")) {
+                return name.substring(6);
+            } else if (name.equals("secp256r1")) {  // TODO [childw]
+                return "prime256v1";
+            } else {
+                return name;
+            }
+        }
     };
 
     private static native int curveNameToInfo(String curveName,
@@ -92,58 +119,35 @@ final class EcUtils {
     private static native void freeGroup(long ptr);
     private static native String[] getCurveNames();
     static native String getCurveNameFromEncoded(byte[] encoded);
-    static native String getCurveNameFromKeySize(byte[] encoded);
 
     private EcUtils() {
         // Prevent instantiation
     }
 
     static ECInfo getSpecByName(final String curveName) {
-        return EC_INFO_CACHE.computeIfAbsent(normalizeName(curveName), EC_INFO_LOADER);
+        return EC_INFO_CACHE.computeIfAbsent(curveName, EC_INFO_LOADER);
     }
 
     static String getNameBySpec(final ECParameterSpec spec) throws InvalidParameterSpecException {
-        //if (EC_NAME_BY_PARAMS.isEmpty()) {
+        if (EC_NAME_BY_CURVE.isEmpty()) {
             for (String name : getCurveNames()) {
-                System.out.println("FOOBAR " + name + " " + normalizeName(name));
-                final String normalized = normalizeName(name);
-                final ComparableECParameterSpec comparable = new ComparableECParameterSpec(getSpecByName(normalized).spec);
-                if (comparable.equals(new ComparableECParameterSpec(spec))) {
-                    System.out.println("HIT ON " + name);
-                    return normalized;
-                }
-                EC_NAME_BY_PARAMS.put(comparable, normalized);
+                EC_NAME_BY_CURVE.put(getSpecByName(name).spec.getCurve(), name);
             }
-            return null;
-        //}
-        //return EC_NAME_BY_PARAMS.get(new ComparableECParameterSpec(spec));
+        }
+        return EC_NAME_BY_CURVE.get(spec.getCurve());
     }
 
-    private static String normalizeName(final String name) {
-        final Matcher matcher = NIST_CURVE_PATTERN.matcher(name);
-        if (matcher.matches()) {
-            switch (matcher.group(1)) {
-                case "P":
-                    return "secp" + matcher.group(2) + "r1";
-                case "K":
-                    return "sect" + matcher.group(2) + "k1";
-                case "B":
-                    // 163 is special. Maybe we need a table of these?
-                    if ("163".equals(matcher.group(2))) {
-                        return "sect163r2";
-                    } else {
-                        return "sect" + matcher.group(2) + "r1";
-                    }
-                default:
-                    return name;
-            }
-        } else if (name.startsWith("X9.62 ")) {
-            return name.substring(6);
-        } else if (name.equals("secp256r1")) {  // TODO [childw]
-            return "prime256v1";
-        } else {
-            return name;
+    private static boolean equals(ECParameterSpec one, ECParameterSpec two) {
+        if (one == two) {
+            return true;
         }
+        if (one == null || two == null) {
+            return false;
+        }
+        return (one.getCofactor() == two.getCofactor() &&
+                one.getOrder().equals(two.getOrder()) &&
+                one.getCurve().equals(two.getCurve()) &&
+                one.getGenerator().equals(two.getGenerator()));
     }
 
     static final class ECInfo {
@@ -204,32 +208,6 @@ final class EcUtils {
         @Override
         public String toString() {
             return "ECInfo [name=" + name + ", spec=" + spec + ", nid=" + nid + "]";
-        }
-    }
-
-    static final class ComparableECParameterSpec {
-        private ECParameterSpec spec;
-
-        ComparableECParameterSpec(ECParameterSpec spec) {
-            this.spec = spec;
-        }
-
-        public boolean equals(ComparableECParameterSpec other) {
-            if (this.spec == other.getSpec()) {
-                return true;
-            }
-
-            if (this.spec == null || other == null || other.getSpec() == null) {
-                return false;
-            }
-            return (this.spec.getCofactor() == other.getSpec().getCofactor() &&
-                    this.spec.getOrder().equals(other.getSpec().getOrder()) &&
-                    this.spec.getCurve().equals(other.getSpec().getCurve()) &&
-                    this.spec.getGenerator().equals(other.getSpec().getGenerator()));
-        }
-
-        public ECParameterSpec getSpec() {
-            return this.spec;
         }
     }
 

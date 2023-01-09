@@ -120,9 +120,7 @@ public class EcGenTest {
     @MethodSource("knownCurveParams")
     public void knownCurves(ArgumentsAccessor arguments) throws Exception {
         for (final Object name : arguments.toArray()) {
-            System.out.println("TESTING " + name);
             testCurveByName((String) name);
-            System.out.println("TESTED.");
         }
     }
 
@@ -283,7 +281,6 @@ public class EcGenTest {
     @Test
     public void threadStorm() throws Throwable {
         final byte[] rngSeed = TestUtil.getRandomBytes(20);
-        System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
         final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
         rng.setSeed(rngSeed);
         final int generatorCount = 8;

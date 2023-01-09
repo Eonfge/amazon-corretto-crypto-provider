@@ -76,7 +76,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         jni_string jniCurve(env, curveName);
 
         int nid = OBJ_txt2nid(jniCurve.native_str);
-        //int nid = EC_curve_nist2nid(jniCurve.native_str);
         if (nid == NID_undef) {
             ERR_clear_error();
             return 0;
@@ -158,7 +157,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         }
         orderBN.toJavaArray(env, orderArr);
 
-        // TODO [childw]
+        // Get the DER-encoded OID/curve name
         jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), /*trace*/nullptr);
         CBB cbb;
         CBB_init_fixed(&cbb, borrow.data(), borrow.len());
@@ -176,7 +175,6 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
 /*
  * Class:     com_amazon_corretto_crypto_provider_EcUtils
  * Method:    getCurveNames
- * Signature: TODO [childw]
  */
 JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCurveNames(
   JNIEnv *pEnv,
@@ -186,18 +184,20 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
         raii_env env(pEnv);
 
         std::vector<EC_builtin_curve> curves;
-        size_t numCurves = EC_get_builtin_curves(curves.data(), 0); // get curve count
+        // Specify 0 as the max return count so no data is written, but we get the curve count
+        int numCurves = (int) EC_get_builtin_curves(curves.data(), 0);
+        // Now that we know the number of curves to expect, resize and get the curve info from LC
         curves.resize(numCurves);
         numCurves = EC_get_builtin_curves(curves.data(), curves.size());
         if (numCurves > curves.size()) {
+            // We get curve count from LC and resize accordingly, so we should never hit this.
             throw_openssl("Too many curves");
         }
 
         jobjectArray names = env->NewObjectArray(numCurves, env->FindClass("java/lang/String"), nullptr);
         for (int i = 0; i < numCurves; i++) {
-            int nid = curves[i].nid;
-            env->SetObjectArrayElement(names, i, env->NewStringUTF(EC_curve_nid2nist(nid)));
-            env->SetObjectArrayElement(names, i, env->NewStringUTF(OBJ_nid2sn(nid)));
+            // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-284")
+            env->SetObjectArrayElement(names, i, env->NewStringUTF(OBJ_nid2sn(curves[i].nid)));
         }
 
         return names;
@@ -209,8 +209,8 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
 
 /*
  * Class:     com_amazon_corretto_crypto_provider_EcUtils
- * Method:    decodeCurve
- * Signature: TODO [childw]
+ * Method:    getCurveNameFromEncoded
+ * Signature: ([B)Ljava/lang/String
  */
 JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCurveNameFromEncoded(
   JNIEnv *pEnv,
@@ -229,25 +229,10 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
             throw_openssl("Unable to decode curve OID");
         }
 
-        int nid = EC_GROUP_get_curve_name(group);
-        //return env->NewStringUTF(EC_curve_nid2nist(nid));
-        return env->NewStringUTF(OBJ_nid2sn(nid));
+        // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-284")
+        return env->NewStringUTF(OBJ_nid2sn(EC_GROUP_get_curve_name(group)));
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return nullptr;
     }
 }
-
-/*
-
-// EC_curve_nid2nist returns the NIST name of the elliptic curve specified by
-// |nid|, or NULL if |nid| is not a NIST curve. For example, it returns "P-256"
-// for |NID_X9_62_prime256v1|.
-OPENSSL_EXPORT const char *EC_curve_nid2nist(int nid);
-
-// EC_KEY_parse_curve_name parses a DER-encoded OBJECT IDENTIFIER as a curve
-// name from |cbs| and advances |cbs|. It returns a newly-allocated |EC_GROUP|
-// or NULL on error.
-OPENSSL_EXPORT EC_GROUP *EC_KEY_parse_curve_name(CBS *cbs);
-
-*/
