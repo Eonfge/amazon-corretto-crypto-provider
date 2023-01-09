@@ -20,36 +20,35 @@ public final class EcParameters extends AlgorithmParametersSpi {
             throw new InvalidParameterSpecException("paramSpec must not be null");
         }
 
+        String name = null;
         if (paramSpec instanceof ECParameterSpec) {
-            String name = EcUtils.getNameBySpec((ECParameterSpec)paramSpec);
-            ecInfo = EcUtils.getSpecByName(name);
+            name = EcUtils.getNameBySpec((ECParameterSpec)paramSpec);
         } else if (paramSpec instanceof ECGenParameterSpec) {
-            String name = ((ECGenParameterSpec)paramSpec).getName();
-            ecInfo = EcUtils.getSpecByName(name);
+            name = ((ECGenParameterSpec)paramSpec).getName();
         } else {
-            throw new InvalidParameterSpecException("Only ECParameterSpec and ECGenParameterSpec supported");
+            throw new InvalidParameterSpecException("Only ECParameterSpec, ECGenParameterSpec, and ECKeySizeParameterSpec supported");
         }
 
+        ecInfo = EcUtils.getSpecByName(name);
         if (ecInfo == null) {
-            throw new InvalidParameterSpecException("Not a supported curve: " + paramSpec);
+            throw new InvalidParameterSpecException("Unknown curve: " + paramSpec);
         }
     }
 
     protected void engineInit(byte[] params) throws IOException {
-        // TODO [childw]: what to do here?
-        //DerValue encodedParams = new DerValue(params);
-        //if (encodedParams.tag == DerValue.tag_ObjectId) {
-            //ObjectIdentifier oid = encodedParams.getOID();
-            //NamedCurve spec = CurveDB.lookup(oid.toString());
-            //if (spec == null) {
-                //throw new IOException("Unknown named curve: " + oid);
-            //}
-
-            //namedCurve = spec;
-            //return;
-        //}
-
-        throw new IOException("Only named EcParameters supported");
+        String name = null;
+        try {
+            name = EcUtils.getCurveNameFromEncoded(params);
+        } catch (RuntimeCryptoException e) {
+            // pass, handle via null check below
+        }
+        if (name == null) {
+            throw new IOException("Only named EcParameters supported");
+        }
+        ecInfo = EcUtils.getSpecByName(name);
+        if (ecInfo == null) {
+            throw new IOException("Unknown named curve: " + name);
+        }
     }
 
     protected void engineInit(byte[] params, String unused) throws IOException {
@@ -72,7 +71,7 @@ public final class EcParameters extends AlgorithmParametersSpi {
 
     protected byte[] engineGetEncoded() throws IOException {
         // TODO [childw] clone before returning to avoid exposing static reference?
-        return ecInfo.encoded;
+        return ecInfo.encoded.clone();
     }
 
     protected byte[] engineGetEncoded(String encodingMethod) throws IOException {

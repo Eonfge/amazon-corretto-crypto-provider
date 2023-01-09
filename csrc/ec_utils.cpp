@@ -162,7 +162,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         CBB cbb;
         CBB_init_fixed(&cbb, borrow.data(), borrow.len());
         if (!EC_KEY_marshal_curve_name(&cbb, group)) {
-            throw_openssl("Unable to encode curve name OID");
+            throw_openssl("Unable to encode curve OID");
         }
 
         return nid;
@@ -201,36 +201,50 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
         return names;
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
-        return 0;
+        return nullptr;
     }
 }
 
 /*
+ * Class:     com_amazon_corretto_crypto_provider_EcUtils
+ * Method:    decodeCurve
+ * Signature: TODO [childw]
+ */
+JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCurveNameFromEncoded(
+  JNIEnv *pEnv,
+  jclass,
+  jbyteArray encoded
+  )
+{
+    try {
+        raii_env env(pEnv);
 
+        jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), /*trace*/nullptr);
+        CBS cbs;
+        CBS_init(&cbs, borrow.data(), borrow.len());
+        EC_GROUP *group = EC_KEY_parse_curve_name(&cbs);
+        if (group == nullptr) {
+            throw_openssl("Unable to decode curve OID");
+        }
 
+        int nid = EC_GROUP_get_curve_name(group);
+        return env->NewStringUTF(EC_curve_nid2nist(nid));
+    } catch (java_ex &ex) {
+        ex.throw_to_java(pEnv);
+        return nullptr;
+    }
+}
 
-// EC_KEY_marshal_curve_name marshals |group| as a DER-encoded OBJECT IDENTIFIER
-// and appends the result to |cbb|. It returns one on success and zero on
-// failure.
-OPENSSL_EXPORT int EC_KEY_marshal_curve_name(CBB *cbb, const EC_GROUP *group);
+/*
 
 // EC_curve_nid2nist returns the NIST name of the elliptic curve specified by
 // |nid|, or NULL if |nid| is not a NIST curve. For example, it returns "P-256"
 // for |NID_X9_62_prime256v1|.
 OPENSSL_EXPORT const char *EC_curve_nid2nist(int nid);
 
+// EC_KEY_parse_curve_name parses a DER-encoded OBJECT IDENTIFIER as a curve
+// name from |cbs| and advances |cbs|. It returns a newly-allocated |EC_GROUP|
+// or NULL on error.
+OPENSSL_EXPORT EC_GROUP *EC_KEY_parse_curve_name(CBS *cbs);
 
-// EC_builtin_curve describes a supported elliptic curve.
-typedef struct {
-  int nid;
-  const char *comment;
-} EC_builtin_curve;
-
-// EC_get_builtin_curves writes at most |max_num_curves| elements to
-// |out_curves| and returns the total number that it would have written, had
-// |max_num_curves| been large enough.
-//
-// The |EC_builtin_curve| items describe the supported elliptic curves.
-OPENSSL_EXPORT size_t EC_get_builtin_curves(EC_builtin_curve *out_curves,
-                                            size_t max_num_curves);
 */

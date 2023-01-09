@@ -70,6 +70,8 @@ public final class AmazonCorrettoCryptoProvider extends java.security.Provider {
         addService("KeyPairGenerator", "RSA", "RsaGen");
         addService("KeyPairGenerator", "EC", "EcGen");
 
+        addService("AlgorithmParameters", "EC", "EcParameters");
+
         addService("Cipher", "RSA/ECB/NoPadding", "RsaCipher$NoPadding");
         addService("Cipher", "RSA/ECB/Pkcs1Padding", "RsaCipher$Pkcs1");
         addService("Cipher", "RSA/ECB/OAEPPadding", "RsaCipher$OAEP");

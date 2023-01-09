@@ -23,8 +23,15 @@ import java.util.regex.Pattern;
 final class EcUtils {
     private static final BigInteger MAX_COFACTOR = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final Pattern NIST_CURVE_PATTERN = Pattern.compile("(?:NIST )?(.)-(\\d+)");
+    private static final ConcurrentHashMap<ECParameterSpec, String> EC_NAME_BY_PARAMS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, String> EC_NAME_BY_KEY_SIZE = new ConcurrentHashMap<>();
+
     private static final ConcurrentHashMap<String, ECInfo> EC_INFO_CACHE = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<ECParameterSpec, String> EC_PARAMS_CACHE = new ConcurrentHashMap<>();
+    static {
+        for (String name : getCurveNames()) {
+            getSpecByName(name);    // populate the cache
+        }
+    }
     private static final Function<String, ECInfo> EC_INFO_LOADER = new Function<String, ECInfo>() {
         @Override
         public ECInfo apply(final String curveName) {
@@ -73,6 +80,7 @@ final class EcUtils {
             ECParameterSpec spec;
             try {
                 // First try to translate this to parameters representing a named curve
+                //AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC", AmazonCorrettoCryptoProvider.INSTANCE);
                 AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC");
                 parameters.init(namedSpec);
                 spec = parameters.getParameterSpec(ECParameterSpec.class);
@@ -135,6 +143,8 @@ final class EcUtils {
     private static native long buildGroup(int nid);
     private static native void freeGroup(long ptr);
     private static native String[] getCurveNames();
+    static native String getCurveNameFromEncoded(byte[] encoded);
+    static native String getCurveNameFromKeySize(byte[] encoded);
 
     private EcUtils() {
         // Prevent instantiation
@@ -144,16 +154,23 @@ final class EcUtils {
         return EC_INFO_CACHE.computeIfAbsent(curveName, EC_INFO_LOADER);
     }
 
-    static String getNameBySpec(final ECParameterSpec spec) {
-        if (EC_PARAMS_CACHE.isEmpty()) {
+    static String getNameBySpec(final ECParameterSpec spec) throws InvalidParameterSpecException {
+        if (EC_NAME_BY_PARAMS.isEmpty()) {
             for (String name : getCurveNames()) {
-                EC_PARAMS_CACHE.put(getSpecByName(name).spec, name);
+                EC_NAME_BY_PARAMS.put(getSpecByName(name).spec, name);
             }
         }
-        if (!EC_PARAMS_CACHE.contains(spec)) {
-            // TODO [childw] throw
+        return EC_NAME_BY_PARAMS.get(spec);
+    }
+
+    static String getNameByKeySize(final int keySize) {
+        if (EC_NAME_BY_KEY_SIZE.isEmpty()) {
+            for (String name : getCurveNames()) {
+                int size = getSpecByName(name).spec.getCurve().getField().getFieldSize();
+                EC_NAME_BY_KEY_SIZE.put(size, name);
+            }
         }
-        return EC_PARAMS_CACHE.get(spec);
+        return EC_NAME_BY_KEY_SIZE.get(keySize);
     }
 
     static final class ECInfo {
