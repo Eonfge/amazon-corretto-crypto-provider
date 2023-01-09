@@ -281,6 +281,7 @@ public class EcGenTest {
     @Test
     public void threadStorm() throws Throwable {
         final byte[] rngSeed = TestUtil.getRandomBytes(20);
+        System.out.println("RNG Seed: " + Arrays.toString(rngSeed));
         final SecureRandom rng = SecureRandom.getInstance("SHA1PRNG");
         rng.setSeed(rngSeed);
         final int generatorCount = 8;

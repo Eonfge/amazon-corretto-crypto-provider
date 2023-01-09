@@ -119,7 +119,7 @@ class EcGen extends KeyPairGeneratorSpi {
 
     private static byte[] encodeSpec(final AlgorithmParameterSpec spec) {
         try {
-            AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC", AmazonCorrettoCryptoProvider.INSTANCE);
+            AlgorithmParameters parameters = AlgorithmParameters.getInstance("EC");
             parameters.init(spec);
             return parameters.getEncoded();
         } catch (final GeneralSecurityException | IOException ex) {

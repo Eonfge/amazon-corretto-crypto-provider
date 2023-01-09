@@ -185,7 +185,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
 
         std::vector<EC_builtin_curve> curves;
         // Specify 0 as the max return count so no data is written, but we get the curve count
-        int numCurves = (int) EC_get_builtin_curves(curves.data(), 0);
+        size_t numCurves = EC_get_builtin_curves(curves.data(), 0);
         // Now that we know the number of curves to expect, resize and get the curve info from LC
         curves.resize(numCurves);
         numCurves = EC_get_builtin_curves(curves.data(), curves.size());
@@ -195,7 +195,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
         }
 
         jobjectArray names = env->NewObjectArray(numCurves, env->FindClass("java/lang/String"), nullptr);
-        for (int i = 0; i < numCurves; i++) {
+        for (size_t i = 0; i < numCurves; i++) {
             // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-284")
             env->SetObjectArrayElement(names, i, env->NewStringUTF(OBJ_nid2sn(curves[i].nid)));
         }

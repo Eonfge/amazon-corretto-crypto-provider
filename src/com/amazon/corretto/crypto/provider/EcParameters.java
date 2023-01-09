@@ -70,8 +70,7 @@ public final class EcParameters extends AlgorithmParametersSpi {
     }
 
     protected byte[] engineGetEncoded() throws IOException {
-        // TODO [childw] clone before returning to avoid exposing static reference?
-        return ecInfo.encoded.clone();
+        return ecInfo.encoded.clone();  // clone to avoid exposing static reference
     }
 
     protected byte[] engineGetEncoded(String encodingMethod) throws IOException {
