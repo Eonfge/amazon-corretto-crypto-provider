@@ -158,7 +158,7 @@ JNIEXPORT jint JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_curveNam
         orderBN.toJavaArray(env, orderArr);
 
         // Get the DER-encoded OID/curve name
-        jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), /*trace*/nullptr);
+        jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), "curveNameToInfo");
         CBB cbb;
         CBB_init_fixed(&cbb, borrow.data(), borrow.len());
         if (!EC_KEY_marshal_curve_name(&cbb, group)) {
@@ -221,7 +221,7 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
     try {
         raii_env env(pEnv);
 
-        jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), /*trace*/nullptr);
+        jni_borrow borrow = jni_borrow(env, java_buffer::from_array(env, encoded), "getCurveNameFromEncoded");
         CBS cbs;
         CBS_init(&cbs, borrow.data(), borrow.len());
         EC_GROUP *group = EC_KEY_parse_curve_name(&cbs);
@@ -230,11 +230,18 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
         }
 
         int nid = EC_GROUP_get_curve_name(group);
-        if (group == NID_undef) {
+        if (nid == NID_undef) {
             throw_openssl("Unable to get curve nid from group");
         }
         // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-384")
-        return env->NewStringUTF(OBJ_nid2sn(nid));
+        const char* shortName = OBJ_nid2sn(nid);
+        if (shortName == nullptr) {
+            throw_openssl("Unable to get short name from nid");
+        }
+        // NOTE: need to use the JNIEnv |pEnv| here instead of raii_env |env|
+        // because we're returning the JString value and |env|'s dtor checks
+        // for locks once it goes out of scope.
+        return pEnv->NewStringUTF(shortName);
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return nullptr;
