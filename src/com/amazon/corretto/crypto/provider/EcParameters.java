@@ -4,7 +4,7 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.io.IOException;
-
+import java.lang.reflect.Method;
 import java.security.*;
 import java.security.spec.*;
 
@@ -26,6 +26,17 @@ public final class EcParameters extends AlgorithmParametersSpi {
         } else if (paramSpec instanceof ECGenParameterSpec) {
             name = ((ECGenParameterSpec)paramSpec).getName();
         } else {
+            // TODO [childw] explain this and all the module nonsense
+            try {
+                Method getKeySize = paramSpec.getClass().getMethod("getKeySize");
+                Integer keySize = Integer.class.cast(getKeySize.invoke(paramSpec));
+                name = EcUtils.getNameByKeySize(keySize);
+            } catch (ReflectiveOperationException e) {
+                // pass, null check below
+            }
+        }
+
+        if (name == null) {
             throw new InvalidParameterSpecException("Only ECParameterSpec and ECGenParameterSpec supported");
         }
 

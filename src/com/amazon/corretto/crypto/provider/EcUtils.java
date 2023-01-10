@@ -23,6 +23,7 @@ final class EcUtils {
     private static final BigInteger MAX_COFACTOR = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final Pattern NIST_CURVE_PATTERN = Pattern.compile("(?:NIST )?(.)-(\\d+)");
     private static final ConcurrentHashMap<EllipticCurve, String> EC_NAME_BY_CURVE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, String> EC_NAME_BY_KEY_SIZE = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, ECInfo> EC_INFO_CACHE = new ConcurrentHashMap<>();
     private static final Function<String, ECInfo> EC_INFO_LOADER = new Function<String, ECInfo>() {
         @Override
@@ -137,17 +138,13 @@ final class EcUtils {
         return EC_NAME_BY_CURVE.get(spec.getCurve());
     }
 
-    private static boolean equals(ECParameterSpec one, ECParameterSpec two) {
-        if (one == two) {
-            return true;
+    static String getNameByKeySize(final Integer keySize) throws InvalidParameterSpecException {
+        if (EC_NAME_BY_KEY_SIZE.isEmpty()) {
+            for (String name : getCurveNames()) {
+                EC_NAME_BY_KEY_SIZE.put(getSpecByName(name).spec.getCurve().getField().getFieldSize(), name);
+            }
         }
-        if (one == null || two == null) {
-            return false;
-        }
-        return (one.getCofactor() == two.getCofactor() &&
-                one.getOrder().equals(two.getOrder()) &&
-                one.getCurve().equals(two.getCurve()) &&
-                one.getGenerator().equals(two.getGenerator()));
+        return EC_NAME_BY_KEY_SIZE.get(keySize);
     }
 
     static final class ECInfo {

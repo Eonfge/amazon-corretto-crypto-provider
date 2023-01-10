@@ -196,7 +196,7 @@ JNIEXPORT jobjectArray JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_
 
         jobjectArray names = env->NewObjectArray(numCurves, env->FindClass("java/lang/String"), nullptr);
         for (size_t i = 0; i < numCurves; i++) {
-            // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-284")
+            // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-384")
             env->SetObjectArrayElement(names, i, env->NewStringUTF(OBJ_nid2sn(curves[i].nid)));
         }
 
@@ -229,7 +229,7 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
             throw_openssl("Unable to decode curve OID");
         }
 
-        // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-284")
+        // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-384")
         return env->NewStringUTF(OBJ_nid2sn(EC_GROUP_get_curve_name(group)));
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
