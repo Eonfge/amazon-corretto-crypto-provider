@@ -226,11 +226,15 @@ JNIEXPORT jstring JNICALL Java_com_amazon_corretto_crypto_provider_EcUtils_getCu
         CBS_init(&cbs, borrow.data(), borrow.len());
         EC_GROUP *group = EC_KEY_parse_curve_name(&cbs);
         if (group == nullptr) {
-            throw_openssl("Unable to decode curve OID");
+            throw_openssl("Unable to parse curve OID ASN.1");
         }
 
+        int nid = EC_GROUP_get_curve_name(group);
+        if (group == NID_undef) {
+            throw_openssl("Unable to get curve nid from group");
+        }
         // NOTE: we return the "short name" (e.g. secp384r1) rather than the NIST name (e.g. "NIST P-384")
-        return env->NewStringUTF(OBJ_nid2sn(EC_GROUP_get_curve_name(group)));
+        return env->NewStringUTF(OBJ_nid2sn(nid));
     } catch (java_ex &ex) {
         ex.throw_to_java(pEnv);
         return nullptr;

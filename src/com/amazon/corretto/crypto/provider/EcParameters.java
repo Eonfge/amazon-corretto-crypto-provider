@@ -49,7 +49,7 @@ public final class EcParameters extends AlgorithmParametersSpi {
     protected void engineInit(byte[] params) throws IOException {
         String name = null;
         try {
-            name = EcUtils.getCurveNameFromEncoded(params);
+            name = EcUtils.getNameByEncoded(params);
         } catch (RuntimeCryptoException e) {
             // pass, handle via null check below
         }

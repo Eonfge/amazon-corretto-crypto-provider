@@ -4,12 +4,10 @@
 package com.amazon.corretto.crypto.provider;
 
 import java.math.BigInteger;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidParameterSpecException;
+import java.nio.ByteBuffer;
 import java.security.spec.ECField;
 import java.security.spec.ECFieldF2m;
 import java.security.spec.ECFieldFp;
-import java.security.spec.ECGenParameterSpec;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.EllipticCurve;
@@ -22,8 +20,6 @@ import java.util.regex.Pattern;
 final class EcUtils {
     private static final BigInteger MAX_COFACTOR = BigInteger.valueOf(Integer.MAX_VALUE);
     private static final Pattern NIST_CURVE_PATTERN = Pattern.compile("(?:NIST )?(.)-(\\d+)");
-    private static final ConcurrentHashMap<EllipticCurve, String> EC_NAME_BY_CURVE = new ConcurrentHashMap<>();
-    private static final ConcurrentHashMap<Integer, String> EC_NAME_BY_KEY_SIZE = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<String, ECInfo> EC_INFO_CACHE = new ConcurrentHashMap<>();
     private static final Function<String, ECInfo> EC_INFO_LOADER = new Function<String, ECInfo>() {
         @Override
@@ -100,6 +96,18 @@ final class EcUtils {
         }
     };
 
+    private static final ConcurrentHashMap<ByteBuffer, String> EC_NAME_BY_ENCODED = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<EllipticCurve, String> EC_NAME_BY_CURVE = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer, String> EC_NAME_BY_KEY_SIZE = new ConcurrentHashMap<>();
+    static {
+        for (String name : getCurveNames()) {
+            getSpecByName(name);
+            EC_NAME_BY_CURVE.put(getSpecByName(name).spec.getCurve(), name);
+            EC_NAME_BY_KEY_SIZE.put(getSpecByName(name).spec.getCurve().getField().getFieldSize(), name);
+            EC_NAME_BY_ENCODED.put(ByteBuffer.wrap(getSpecByName(name).encoded), name);
+        }
+    }
+
     private static native int curveNameToInfo(String curveName,
             // Array of length 1 to contain the binary field M return value
             // 0 if a prime field
@@ -119,7 +127,7 @@ final class EcUtils {
     private static native long buildGroup(int nid);
     private static native void freeGroup(long ptr);
     private static native String[] getCurveNames();
-    static native String getCurveNameFromEncoded(byte[] encoded);
+    private static native String getCurveNameFromEncoded(byte[] encoded);
 
     private EcUtils() {
         // Prevent instantiation
@@ -129,22 +137,23 @@ final class EcUtils {
         return EC_INFO_CACHE.computeIfAbsent(curveName, EC_INFO_LOADER);
     }
 
-    static String getNameBySpec(final ECParameterSpec spec) throws InvalidParameterSpecException {
-        if (EC_NAME_BY_CURVE.isEmpty()) {
-            for (String name : getCurveNames()) {
-                EC_NAME_BY_CURVE.put(getSpecByName(name).spec.getCurve(), name);
-            }
-        }
+    static String getNameBySpec(final ECParameterSpec spec) {
         return EC_NAME_BY_CURVE.get(spec.getCurve());
     }
 
-    static String getNameByKeySize(final Integer keySize) throws InvalidParameterSpecException {
-        if (EC_NAME_BY_KEY_SIZE.isEmpty()) {
-            for (String name : getCurveNames()) {
-                EC_NAME_BY_KEY_SIZE.put(getSpecByName(name).spec.getCurve().getField().getFieldSize(), name);
+    static String getNameByKeySize(final Integer keySize) {
+        return EC_NAME_BY_KEY_SIZE.get(keySize);
+    }
+
+    synchronized static String getNameByEncoded(final byte[] encoded) {
+        String name = EC_NAME_BY_ENCODED.get(ByteBuffer.wrap(encoded));
+        if (name == null) {
+            name = getCurveNameFromEncoded(encoded);
+            if (name != null) {
+                EC_NAME_BY_ENCODED.put(ByteBuffer.wrap(encoded.clone()), name);
             }
         }
-        return EC_NAME_BY_KEY_SIZE.get(keySize);
+        return name;
     }
 
     static final class ECInfo {
