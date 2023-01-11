@@ -11,6 +11,7 @@ import java.security.spec.ECFieldFp;
 import java.security.spec.ECParameterSpec;
 import java.security.spec.ECPoint;
 import java.security.spec.EllipticCurve;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -60,7 +61,22 @@ final class EcUtils {
 
             final ECParameterSpec spec = new ECParameterSpec(curve, g, new BigInteger(order), bnCofactor.intValue());
 
-            return new ECInfo(curveName, spec, nid, encoded);
+            return new ECInfo(curveName, spec, nid, trimTrailingNullBytes(encoded));
+        }
+
+        // We need to trim the trailing null bytes from encoded curve OIDs
+        // because BouncyCastle considers them invalid DER and will throw
+        // exceptions on key specs encoded by ACCP.
+        private byte[] trimTrailingNullBytes(byte[] input) {
+            int firstTrailingNullIdx = input.length;
+            for (int i = input.length-1; i >= 0; i--){
+                if (input[i] == (byte) 0) {
+                    firstTrailingNullIdx = i;
+                } else {
+                    break;
+                }
+            }
+            return Arrays.copyOf(input, firstTrailingNullIdx);
         }
 
         private String normalizeName(final String name) {
@@ -145,7 +161,7 @@ final class EcUtils {
         return EC_NAME_BY_KEY_SIZE.get(keySize);
     }
 
-    synchronized static String getNameByEncoded(final byte[] encoded) {
+    static String getNameByEncoded(final byte[] encoded) {
         String name = EC_NAME_BY_ENCODED.get(ByteBuffer.wrap(encoded));
         if (name == null) {
             name = getCurveNameFromEncoded(encoded);
