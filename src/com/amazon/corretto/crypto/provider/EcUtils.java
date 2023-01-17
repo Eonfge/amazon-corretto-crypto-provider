@@ -107,7 +107,7 @@ final class EcUtils {
             } else if (name.equals("secp256r1")) {  // TODO [childw]
                 return "prime256v1";
             } else {
-                return name;
+                return name.toLowerCase().replace("_", "");
             }
         }
     };
@@ -145,6 +145,27 @@ final class EcUtils {
     private static native String[] getCurveNames();
     private static native String getCurveNameFromEncoded(byte[] encoded);
 
+    static String getOidFromName(String name) {
+        if (name == null) {
+            return null;
+        }
+        switch(name) {
+            case "secp224r1":
+                return "1.3.132.0.33";
+            case "prime256v1":
+            case "secp256r1":
+                return "1.2.840.10045.3.1.7";
+            case "secp256k1":
+                return "1.3.132.0.10";
+            case "secp384r1":
+                return "1.3.132.0.34";
+            case "secp521r1":
+                return "1.3.132.0.35";
+            default:
+                throw new RuntimeCryptoException("Unrecognized curve: " + name);
+        }
+    }
+
     private EcUtils() {
         // Prevent instantiation
     }
@@ -163,6 +184,7 @@ final class EcUtils {
 
     static String getNameByEncoded(final byte[] encoded) {
         String name = EC_NAME_BY_ENCODED.get(ByteBuffer.wrap(encoded));
+        // TODO: note about needing to call out to LC b/c DER isn't always canonical
         if (name == null) {
             name = getCurveNameFromEncoded(encoded);
             if (name != null) {

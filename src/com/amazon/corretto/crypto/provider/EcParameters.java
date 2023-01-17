@@ -23,8 +23,14 @@ public final class EcParameters extends AlgorithmParametersSpi {
         String name = null;
         if (paramSpec instanceof ECParameterSpec) {
             name = EcUtils.getNameBySpec((ECParameterSpec)paramSpec);
+            if (Utils.getJavaVersion() <= 8) {
+                name = EcUtils.getOidFromName(name);
+            }
         } else if (paramSpec instanceof ECGenParameterSpec) {
             name = ((ECGenParameterSpec)paramSpec).getName();
+            if (name == null) {
+                name = "secp256r1";
+            }
         } else {
             // TODO [childw] explain this and all the module nonsense
             try {

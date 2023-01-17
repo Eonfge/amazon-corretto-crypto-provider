@@ -261,6 +261,15 @@ public class TestHTTPSServer {
         javaInvocation.add("-cp");
         javaInvocation.add(classpathString.toString());
         javaInvocation.add("-Djava.library.path=" + System.getProperty("java.library.path"));
+        //javaInvocation.add("-Djavax.net.debug=all");
+        try {
+            String[] cipherSuites = SSLContext.getDefault().createSSLEngine().getSupportedCipherSuites();
+            //javaInvocation.add("-Djdk.tls.client.cipherSuites=" + String.join(",", cipherSuites));
+            //javaInvocation.add("-Djdk.tls.server.cipherSuites=" + String.join(",", cipherSuites));
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
+        }
+        javaInvocation.add("-Djdk.tls.namedGroups=secp521r1,secp384r1,secp224r1,secp256r1,secp256k1");
         javaInvocation.addAll(Arrays.asList(args));
 
         return Runtime.getRuntime().exec(javaInvocation.toArray(new String[0]));
@@ -275,20 +284,23 @@ public class TestHTTPSServer {
     private static void watchStream(String threadName, InputStream is, Consumer<String> lineProcessor) {
         Thread t = new Thread(
                 () -> {
-                    try (BufferedReader br = new BufferedReader(
-                            new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                        String line;
-                        while (null != (line = br.readLine())) {
-                            lineProcessor.accept(line);
-                        }
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                        return;
-                    } finally {
-                        try {
-                            is.close();
-                        } catch (IOException e) {
-                            // can't do anything about it
+                    while (true) {
+                        try (BufferedReader br = new BufferedReader(
+                                new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                            String line;
+                            while (null != (line = br.readLine())) {
+                                lineProcessor.accept(line);
+                            }
+                            Thread.sleep(1000);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                            return;
+                        } finally {
+                            try {
+                                is.close();
+                            } catch (IOException e) {
+                                // can't do anything about it
+                            }
                         }
                     }
                 }
