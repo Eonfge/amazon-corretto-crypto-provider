@@ -23,14 +23,13 @@ public final class EcParameters extends AlgorithmParametersSpi {
         String name = null;
         if (paramSpec instanceof ECParameterSpec) {
             name = EcUtils.getNameBySpec((ECParameterSpec)paramSpec);
+            // TODO [childw] explain that JDK 8 uses OID as the name rather than human-legible "shortname"
+            // TODO [childw] double check the version where this starts (somewhere between 8 and 10 (inclusive))
             if (Utils.getJavaVersion() <= 8) {
                 name = EcUtils.getOidFromName(name);
             }
         } else if (paramSpec instanceof ECGenParameterSpec) {
             name = ((ECGenParameterSpec)paramSpec).getName();
-            if (name == null) {
-                name = "secp256r1";
-            }
         } else {
             // TODO [childw] explain this and all the module nonsense
             try {

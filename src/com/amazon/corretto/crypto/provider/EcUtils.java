@@ -107,7 +107,7 @@ final class EcUtils {
             } else if (name.equals("secp256r1")) {  // TODO [childw]
                 return "prime256v1";
             } else {
-                return name.toLowerCase().replace("_", "");
+                return name;
             }
         }
     };
@@ -145,6 +145,7 @@ final class EcUtils {
     private static native String[] getCurveNames();
     private static native String getCurveNameFromEncoded(byte[] encoded);
 
+    // TODO [childw] automate this with calls to AWS-LC
     static String getOidFromName(String name) {
         if (name == null) {
             return null;
