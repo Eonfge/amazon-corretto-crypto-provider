@@ -63,8 +63,8 @@ public class ExternalHTTPSIntegrationTest {
 
         for (String url : URLS) {
             // (enable bouncycastle, url)
-            //cases.add(new Object[] { false, url });
-            //cases.add(new Object[] { true, url });
+            cases.add(new Object[] { false, url });
+            cases.add(new Object[] { true, url });
         }
 
         return cases.toArray(new Object[0][]);

@@ -98,18 +98,14 @@ public class LocalHTTPSIntegrationTest {
                     continue;
                 }
 
-                if (!cipherSuite.contains("_EC") && !method.contains("ECDSA")) {
-                    continue;
-                }
-
                 List<Integer> keySizes = HTTPSTestParameters.keySizesForSignatureMethod(method);
 
                 for (int size: keySizes) {
                     // boolean flags: ACCP on server, BC on client
                     params.add(new Object[] { true, true, cipherSuite, method, size });
-                    //params.add(new Object[] { false, true, cipherSuite, method, size });
-                    //params.add(new Object[] { true, false, cipherSuite, method, size });
-                    //params.add(new Object[] { false, false, cipherSuite, method, size });
+                    params.add(new Object[] { false, true, cipherSuite, method, size });
+                    params.add(new Object[] { true, false, cipherSuite, method, size });
+                    params.add(new Object[] { false, false, cipherSuite, method, size });
                 }
             }
         }
