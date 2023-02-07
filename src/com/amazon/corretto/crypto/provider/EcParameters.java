@@ -23,9 +23,14 @@ public final class EcParameters extends AlgorithmParametersSpi {
         String name = null;
         if (paramSpec instanceof ECParameterSpec) {
             name = EcUtils.getNameBySpec((ECParameterSpec)paramSpec);
-            // TODO [childw] explain that JDK 8 uses OID as the name rather than human-legible "shortname"
-            // TODO [childw] double check the version where this starts (somewhere between 8 and 10 (inclusive))
-            if (Utils.getJavaVersion() <= 8) {
+            // Earlier Java TLS implementations cache curve params by OID instead of human-readable "shortname".
+            // Specifying the shortname where OID is expected results in TLS handshake failures due to the server
+            // not being able to "find" the intended curve, tricking the server into believing it doesn't support any
+            // of the curves stipulated by the client.
+            //
+            // https://github.com/corretto/corretto-8/blob/235873fd43e5b7aa556d011f436e65a99c10c20a/jdk/src/share/classes/sun/security/ssl/SupportedGroupsExtension.java#L585-L607
+            // https://github.com/openjdk/jdk10u/blob/ef9178d7d8a4489640a31a1d0c88958724af5304/src/java.base/share/classes/sun/security/ssl/SupportedGroupsExtension.java#L188-L210
+            if (Utils.getJavaVersion() < 11) {
                 name = EcUtils.getOidFromName(name);
             }
         } else if (paramSpec instanceof ECGenParameterSpec) {
