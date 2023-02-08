@@ -22,7 +22,7 @@ public final class EcParameters extends AlgorithmParametersSpi {
 
         String name = null;
         if (paramSpec instanceof ECParameterSpec) {
-            name = EcUtils.getNameBySpec((ECParameterSpec)paramSpec);
+            name = EcUtils.getNameBySpec((ECParameterSpec) paramSpec);
             // Earlier Java TLS implementations cache curve params by OID instead of human-readable "shortname".
             // Specifying the shortname where OID is expected results in TLS handshake failures due to the server
             // not being able to "find" the intended curve, tricking the server into believing it doesn't support any
@@ -34,20 +34,27 @@ public final class EcParameters extends AlgorithmParametersSpi {
                 name = EcUtils.getOidFromName(name);
             }
         } else if (paramSpec instanceof ECGenParameterSpec) {
-            name = ((ECGenParameterSpec)paramSpec).getName();
-        } else {
-            // TODO [childw] explain this and all the module nonsense
+            name = ((ECGenParameterSpec) paramSpec).getName();
+        } else if ("sun.security.util.ECKeySizeParameterSpec".equals(paramSpec.getClass().getName())) {
+            // OpenJDK's JCE sometimes passes ECKeySizeParameterSpec when initializing EC AlgorithmParameters. We can
+            // reference this class directly using instanceof up until Java 8, but in Java 9 it was moved to the
+            // java.base module and only exported to other JDK-internal modules. To work around this, we use reflection
+            // to get the key size and get the corresponding curve name from our own database. Future versions of java
+            // may restrict reflective access to private modules, so this functionality may break.
+            //
+            // https://github.com/corretto/corretto-11/blob/14c02261590b4dc01284888a7a51d39ff581ac8d/src/java.base/share/classes/sun/security/util/ECParameters.java#L121
+            // https://github.com/corretto/corretto-11/blob/14c02261590b4dc01284888a7a51d39ff581ac8d/src/java.base/share/classes/module-info.java#L301-L314
             try {
                 Method getKeySize = paramSpec.getClass().getMethod("getKeySize");
                 Integer keySize = Integer.class.cast(getKeySize.invoke(paramSpec));
                 name = EcUtils.getNameByKeySize(keySize);
             } catch (ReflectiveOperationException e) {
-                // pass, null check below
+                // pass, perhaps due to reflective access control restrictions. rely null check below to throw.
             }
         }
 
         if (name == null) {
-            throw new InvalidParameterSpecException("Only ECParameterSpec and ECGenParameterSpec supported");
+            throw new InvalidParameterSpecException("Only ECParameterSpec, ECGenParameterSpec, and ECKeySizeParameterSpec supported");
         }
 
         ecInfo = EcUtils.getSpecByName(name);
